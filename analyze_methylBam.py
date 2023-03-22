@@ -8,9 +8,9 @@ import numpy as np
 
 
 #TODO: 
-'''	test the function
-	get reference position instead of read position
-	get mod probabilities for (-) read'''
+'''	Plot some grouping of reads
+	Find areas where reads are sufficiently different to group
+	'''
 
 def identify_metyl_tags(read):
 	''' the methyl tags can be either Mm/Ml or MM/ML for R10 or R9'''
@@ -26,52 +26,73 @@ def identify_metyl_tags(read):
 
 	return mmTag, mlTag
 
-def identify_seq_orientation(read):
-	'''
-		Mm tags are created as the read comes off the sequencer, always starting at the 5' end.
-		So the orientation of the tags and the seq fies may not be the same if the seq field 
-		was reverse complemented to align to the reference sequence. 
+# def identify_seq_orientation(read):
+# 	'''
+# 		Mm tags are created as the read comes off the sequencer, always starting at the 5' end.
+# 		So the orientation of the tags and the seq fies may not be the same if the seq field 
+# 		was reverse complemented to align to the reference sequence. 
 
-	'''
-	if read.is_forward:
+# 	'''
+# 	if read.is_forward:
 
-		# ? should this be read.query_sequence, query_alignment_sequence, query_alignment_start ? 
-		# seq = Seq(read.seq)
-		seq = read.seq
-		print('\n +', read.reference_name, read.reference_start, read.query_name,'seq',seq[:100] )
-		print('\t',read.cigarstring[:100]) 
-		print('\t',read.get_tag('Mm')[:100])
-	#TODO
-	elif read.is_reverse:
-		seq = read.seq #get_forward_sequence() #seq #Seq(read.seq).reverse_complement()
-		print('\n -',read.reference_name, read.reference_start, read.query_name,'\nread.seq',read.seq[:100],'\n seq',seq[:100],'...',seq[-120:] )
-		print('\t',read.cigarstring)
-		print('\t',read.get_tag('Mm')[:100]) 
-	else: 
-		print('whats the problem?', read)
-	return seq
+# 		# ? should this be read.query_sequence, query_alignment_sequence, query_alignment_start ? 
+# 		# seq = Seq(read.seq)
+# 		seq = read.seq
+# 		# print('\n +', read.reference_name, read.reference_start, read.query_name,'seq',seq[:100] )
+# 		# print('\t',read.cigarstring[:100]) 
+# 		# print('\t',read.get_tag('Mm')[:100])
+
+# 	elif read.is_reverse:
+# 		seq = read.seq #get_forward_sequence()  #Seq(read.seq).reverse_complement()
+# 		# print('\n -',read.reference_name, read.reference_start, read.reference_end,read.mapping_quality, read.mapq, read.query_name,'\nread.seq',read.seq[:100],'\n seq',seq[:100],'...',seq[-220:] )
+# 		# print('read.flag',read.flag,'mq', read.mapq, read.mapping_quality, read.infer_query_length(), read.infer_read_length(), read.inferred_length)
+# 		# print('\t',read.cigarstring)
+# 		# print('\t',read.get_tag('Mm')) 
+# 	else: 
+# 		print('whats the problem?', read)
+# 	return seq
+
+
+def rev_comp(base):
+    complement = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A'}
+    return complement.get(base,base)
 
 def parse_mm_tag(read):
 	'''mm tag needs to be split and skip bases list isolted: Mm C+m?,1,1,6,5;
-		ml tag is stored as an array from the get_tag method, mm is not	'''
+		ml tag is stored as an array from the get_tag method, mm is not'''
 	mm_arr = read.get_tag('Mm')
+	# TODO: Consider storing the +, in the event it is ever a - instead
 	modbase = mm_arr[0]
+	# replace the mod base with it's complement if the alignment is reverse
+	if read.is_reverse:
+		modbase = rev_comp(modbase)
 	# semi-colon delimiter at the end of the list separating the tags is removed 
-	mm = mm_arr.split(',')[1:-1]
+	mm = mm_arr[:-1].split(',')[1::]
+
 	return modbase, mm
+
+def check_modbase_rev(seq,modbase,mod_base_i,mod_base_i_index):
+		# sanity check that that base is the modbase from the Mm Tag
+		if seq[ mod_base_i[-mod_base_i_index] ].upper() != modbase.upper():
+			print('base is not modbase',seq[:-mod_base_i_index].upper(), 'at',i,'. i_skip:', i_skip)
+			return -1
+def check_modbase(seq,modbase,mod_base_i,read_modbase_pos):
+		if seq[ mod_base_i[read_modbase_pos] ].upper() != modbase.upper():
+			print('base is not modbase',seq[:read_modbase_pos].upper(), 'at',i,'. i_skip:', i_skip)
+			return -1
 
 def get_cigar_ref_pos(read):
 	''' parse the cigar string to obtain methylated cytosine positions
 		in refernce coordinates for each read '''
 
-	base_counter=0
-	pos=read.reference_start+1
-	readcigarpositions = [read.reference_start+1]
+
+	pos=read.reference_start#+1
+	readcigarpositions = []#[read.reference_start+1]
 
 	# for anti-sense strand read alignments the cigar tuples need to be read from back to front, 
 	# they are created with respect to the reference. 
 	if read.is_reverse:
-		cigartups = read.cigartuples[::-1]
+		cigartups = read.cigartuples#[::-1]
 		pos+=1
 	else:
 		cigartups = read.cigartuples
@@ -84,22 +105,20 @@ def get_cigar_ref_pos(read):
 		if c[0] == 4:
 			if i<2: 
 				readcigarpositions[0:0] = [0]*c[1]
-				base_counter+=c[1]
 			else:
 				readcigarpositions.extend([0]*c[1])
 		# 1 : INS; add place holder ref coordinate for each read only base consumed by the insertion
 		if c[0] in [1]:
 			readcigarpositions.extend([pos]*c[1])
-			base_counter+=c[1]
-
 
 		# 0 : M :  match/mismatch add ref positions to the array for every M base
 		# 7 : = :  add ref positions to the array for every = base
 		# 8 : X :  mismatch add ref position as if it was =
 		if c[0] in [0,7,8]:
+			# if read.query_name == 'ea1a4055-aa66-4319-8cec-ea002f7c8ba4' and len(readcigarpositions) < 100:
+			# 	print('M:',c,pos,readcigarpositions)
 			readcigarpositions.extend( [i for i in np.arange(pos,pos+c[1]) ] )
 			pos+=c[1] 
-			base_counter+=c[1]
 
 		# 2 : D :  DEL;skip the ref position
 		# 3 : N : REF_SKIP; 
@@ -116,10 +135,14 @@ def write_read_mods_to_bed(mod_base_in_read):
 
 		for chrom , refPos in chroms.items():
 			for pos, modinfo in refPos.items():
-				bfile.write(str(chrom)+'\t'+str(pos)+'\t'+str(pos+1)+'\t'+str(modinfo[1])+'\n' )
+				# adjust the position based on the strand
+				if modinfo[3] == '+':
+					bfile.write(str(chrom)+'\t'+str(pos)+'\t'+str(pos+1)+'\t'+str(modinfo[1])+'\t'+str(modinfo[3])+'\n' )
+				elif modinfo[3] == '-':
+					bfile.write(str(chrom)+'\t'+str(pos-1)+'\t'+str(pos)+'\t'+str(modinfo[1])+'\t'+str(modinfo[3])+'\n' )
 		bfile.close()
 
-def get_methyl_per_read(filePath,ml_cutoff, mod_base_in_read):
+def get_methyl_per_read(filePath, ml_cutoff, mod_base_in_read):
 	''' iterate over all of the read mapping to a specified region using fetch(). 
 	Each iteration returns a AlignedSegment object which represents a single read along with its fields and optional tags:
 	'''
@@ -132,6 +155,8 @@ def get_methyl_per_read(filePath,ml_cutoff, mod_base_in_read):
 	mmTag, mlTag = '', ''
 
 	for read in samfile.fetch('chr20', 1000000, 1000020):
+		strand = lambda x : '-' if x else '+'
+		print('\n',strand(read.is_reverse), read.mapq, read.reference_name, read.reference_start,read.reference_end, read.query_name)
 		read_count+=1
 		# get mm and ml tag information per read
 		# the methyl tags can be either Mm/Ml or MM/ML for R10 or R9
@@ -144,62 +169,62 @@ def get_methyl_per_read(filePath,ml_cutoff, mod_base_in_read):
 		modbase, mm = parse_mm_tag(read)
 		ml = read.get_tag('Ml')
 
-		#TODO: reverse strand seqs are messed up either in seq or in CIGAR string
 		# store the seq in the proper orientation relative to the Ml tag
-		seq = identify_seq_orientation(read)
+		seq = read.seq  #seq = identify_seq_orientation(read)
 
 		# store the index position of every modified base in the read
 		mod_base_i = [b.start() for b in re.finditer(modbase.upper(),str(seq).upper())]
-
+	
 		# get reference positions that account for INDELs/Clips by parsing the cigar string
 		readcigarpositions = get_cigar_ref_pos(read)
 
+		# for a reverse alignment move through the read from back to front counting rev complement C's (aka G) in increments reported by mm tag
 		if read.is_reverse:
-			for i,s in enumerate(seq[:250]):
-				print(s,readcigarpositions[i])
+			mod_base_i_index = 0 
+			for i, i_skip in enumerate(mm):
+				# increment the read position by the number of modbases indicies to skip
+				# the base after the # to skip is the modified base, so add 1
+				mod_base_i_index  += int(i_skip) + 1
 
-		# move through the read by moving in the increments reported by the mm tag
-		read_modbase_pos = 0
-		for i, i_skip in enumerate(mm):
-			# increment the read position by the number of modbases indicies to skip 
-			# ( the number of C's to skip to land on the C that is observed as modified )
-			read_modbase_pos = read_modbase_pos + int(i_skip)
-			
-			# it is the modbase after the # to skip
-			if i>0:
-				read_modbase_pos+=1
+				# only count alignments after the read.query_alignment_start position
+				if mod_base_i[-mod_base_i_index] > read.query_alignment_start and mod_base_i[-mod_base_i_index] < read.query_alignment_end:
+					check_modbase_rev(seq,modbase,mod_base_i,mod_base_i_index)
+					# if the ml probability of being modified is > cutoff,
+					if ml[i] >= ml_cutoff:
+						# check for query name in dict keys
+						if read.query_name not in mod_base_in_read.keys():
+							# create a dictionary entry with the read as key
+							#  read mod base dict : {readName : ref chrom : ref position : [positon in mm tag, ml value, position in read, strand]}
+							mod_base_in_read[read.query_name]={read.reference_name : {readcigarpositions[mod_base_i[-mod_base_i_index]] : [ i,ml[i],mod_base_i[-mod_base_i_index],'-' ]} }
+						if readcigarpositions[mod_base_i[-mod_base_i_index]] not in mod_base_in_read[read.query_name][read.reference_name].keys():
+							mod_base_in_read[read.query_name][read.reference_name][readcigarpositions[mod_base_i[-mod_base_i_index]]] = [ i,ml[i],mod_base_i[-mod_base_i_index],'-' ]
 
-			# only count alignments after the read.query_alignment_start position
-			if mod_base_i[read_modbase_pos] > read.query_alignment_start and mod_base_i[read_modbase_pos] < read.query_alignment_end:
-				##############################
-				if i < 20:
-					print(i,i_skip,'read_modbase_pos',read_modbase_pos, 'modbase_i',mod_base_i[read_modbase_pos],
-						seq[ mod_base_i[read_modbase_pos]-10:mod_base_i[read_modbase_pos]+10 ].upper(),
-						read.positions[ mod_base_i[read_modbase_pos]-read.query_alignment_start ], readcigarpositions[mod_base_i[read_modbase_pos]] )
-					print('\t base is modbase?:',seq[ mod_base_i[read_modbase_pos] ].upper() == modbase.upper() )
-				##############################
-				# sanity check that that base is the modbase from the Mm Tag
-				if seq[ mod_base_i[read_modbase_pos] ].upper() != modbase.upper():
-					print('base is not modbase',seq[:read_modbase_pos].upper(), 'at',i,'. i_skip:', i_skip)
-					break
+		# for a forward alignment move through the read by moving in the increments reported by the mm tag
+		else:
+			read_modbase_pos = 0
+			for i, i_skip in enumerate(mm):
+				# increment the read position by the number of modbases indicies to skip 
+				# ( the number of mod bases to skip to land on the base that is observed as modified )
+				read_modbase_pos = read_modbase_pos + int(i_skip)
+				
+				# it is the modbase after the # to skip
+				if i>0:
+					read_modbase_pos+=1
 
-				# if the ml probability of being modified is > cutoff, 
-				# store the modified base location as it 0-based position in the read sequence string
-				# read mod base dict : {readName : ref chrom : ref position : [positon in mm tag, ml value, position in read]}
-				# TODO Store the strand
-				if ml[i] >= ml_cutoff:
-					if read.query_name not in mod_base_in_read.keys():
-						mod_base_in_read[read.query_name]={read.reference_name : {readcigarpositions[mod_base_i[read_modbase_pos]] : [ i,ml[i],mod_base_i[read_modbase_pos] ]} }
-					if readcigarpositions[mod_base_i[read_modbase_pos]] not in mod_base_in_read[read.query_name][read.reference_name].keys():
-						mod_base_in_read[read.query_name][read.reference_name][readcigarpositions[mod_base_i[read_modbase_pos]]] = [ i,ml[i],mod_base_i[read_modbase_pos] ]
-			else:
-				if i < 20:
-					print('outside of clip:', mod_base_i[read_modbase_pos],i,i_skip,'read_modbase_pos',read_modbase_pos)
+				# only count alignments after the read.query_alignment_start position
+				if mod_base_i[read_modbase_pos] > read.query_alignment_start and mod_base_i[read_modbase_pos] < read.query_alignment_end:
 
+					# sanity check that that base is the modbase from the Mm Tag
+					check_modbase(seq,modbase,mod_base_i,read_modbase_pos)
 
-		# if read_count>2:
-		# 	break
-
+					# if the ml probability of being modified is > cutoff, 
+					# store the modified base location as it 0-based position in the read sequence string
+					# read mod base dict : {readName : ref chrom : ref position : [positon in mm tag, ml value, position in read, strand]}
+					if ml[i] >= ml_cutoff:
+						if read.query_name not in mod_base_in_read.keys():
+							mod_base_in_read[read.query_name]={read.reference_name : {readcigarpositions[mod_base_i[read_modbase_pos]] : [ i,ml[i],mod_base_i[read_modbase_pos],'+' ]} }
+						if readcigarpositions[mod_base_i[read_modbase_pos]] not in mod_base_in_read[read.query_name][read.reference_name].keys():
+							mod_base_in_read[read.query_name][read.reference_name][readcigarpositions[mod_base_i[read_modbase_pos]]] = [ i,ml[i],mod_base_i[read_modbase_pos],'+' ]
 
 	samfile.close()
 
@@ -207,7 +232,10 @@ def get_methyl_per_read(filePath,ml_cutoff, mod_base_in_read):
 
 	return mod_base_in_read
 
-def main():
+
+
+
+def main(bamPath):
 
 	# set ml prob cutoff
 	ml_min_prob = 0.5
@@ -218,26 +246,34 @@ def main():
 	mod_base_in_read = {}
 	
 	# run methyl analyze per read using url
-	mod_base_in_read = get_methyl_per_read("http://public.gi.ucsc.edu/~memeredith/methyl/HG002_card/HG002_ONT_card_2_GRCh38_PEPPER_Margin_DeepVariant.haplotagged.bam",ml_cutoff, mod_base_in_read)
+	# mod_base_in_read = get_methyl_per_read("http://public.gi.ucsc.edu/~memeredith/methyl/HG002_card/HG002_ONT_card_2_GRCh38_PEPPER_Margin_DeepVariant.haplotagged.bam",ml_cutoff, mod_base_in_read)
+	mod_base_in_read = get_methyl_per_read(bamPath,ml_cutoff, mod_base_in_read)
 	# mod_base_in_read = get_methyl_per_read("HG002_ONT_card_2_GRCh38_PEPPER_Margin_DeepVariant.chr20_run2.haplotagged.bam",ml_cutoff, mod_base_in_read)
+
+
+
+
 
 if __name__ == "__main__":
 	'''
 	Python script to cluster reads in a bam by their methyl tag provile
 
 	Usage: python3.9 analyze_methylBam.py 
-	-y hap1.yak.switch-error.mat.sorted.bed -r hap2.yak.switch-error.txt.mat.grch38.sorted.bed -o merged_lifted_files/
+	-b bam 
 	'''
-	main()
 	
-	# parser = argparse.ArgumentParser()
+	
+	parser = argparse.ArgumentParser()
 
-	# parser.add_argument(
-	# 	"-y",
-	# 	required=True,
-	# 	type=str,
-	# 	help="Input yak altered bed, sorted by the component ID "
-	# )
+	parser.add_argument(
+		"-b",
+		required=True,
+		type=str,
+		help="Input BAM, can be file path or http URL "
+	)
+
+	args = parser.parse_args()
+	main(bamPath=args.b)
 
 	# parser.add_argument(
 	# 	"-r",
@@ -253,7 +289,7 @@ if __name__ == "__main__":
 	# 	help="Output directory"
 	# )
 
-	# args = parser.parse_args()
+	
 
 	# main(yak_path=args.y, lifted_path=args.r, output_directory=args.o)
 
@@ -304,24 +340,5 @@ if __name__ == "__main__":
 'seq', 'setTag', 'set_tag', 'set_tags', 
 'tags', 'template_length', 'tid', 'tlen', 'to_dict', 'to_string', 'tostring']
 '''
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
