@@ -26,33 +26,6 @@ def identify_metyl_tags(read):
 
 	return mmTag, mlTag
 
-# def identify_seq_orientation(read):
-# 	'''
-# 		Mm tags are created as the read comes off the sequencer, always starting at the 5' end.
-# 		So the orientation of the tags and the seq fies may not be the same if the seq field 
-# 		was reverse complemented to align to the reference sequence. 
-
-# 	'''
-# 	if read.is_forward:
-
-# 		# ? should this be read.query_sequence, query_alignment_sequence, query_alignment_start ? 
-# 		# seq = Seq(read.seq)
-# 		seq = read.seq
-# 		# print('\n +', read.reference_name, read.reference_start, read.query_name,'seq',seq[:100] )
-# 		# print('\t',read.cigarstring[:100]) 
-# 		# print('\t',read.get_tag('Mm')[:100])
-
-# 	elif read.is_reverse:
-# 		seq = read.seq #get_forward_sequence()  #Seq(read.seq).reverse_complement()
-# 		# print('\n -',read.reference_name, read.reference_start, read.reference_end,read.mapping_quality, read.mapq, read.query_name,'\nread.seq',read.seq[:100],'\n seq',seq[:100],'...',seq[-220:] )
-# 		# print('read.flag',read.flag,'mq', read.mapq, read.mapping_quality, read.infer_query_length(), read.infer_read_length(), read.inferred_length)
-# 		# print('\t',read.cigarstring)
-# 		# print('\t',read.get_tag('Mm')) 
-# 	else: 
-# 		print('whats the problem?', read)
-# 	return seq
-
-
 def rev_comp(base):
     complement = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A'}
     return complement.get(base,base)
@@ -178,7 +151,7 @@ def get_methyl_per_read(filePath, ml_cutoff, mod_base_in_read):
 		# get reference positions that account for INDELs/Clips by parsing the cigar string
 		readcigarpositions = get_cigar_ref_pos(read)
 
-		# for a reverse alignment move through the read from back to front counting rev complement C's (aka G) in increments reported by mm tag
+		# for a reverse alignment move through the alignment from back to front counting rev complement C's (aka G) in increments reported by mm tag
 		if read.is_reverse:
 			mod_base_i_index = 0 
 			for i, i_skip in enumerate(mm):
@@ -199,7 +172,7 @@ def get_methyl_per_read(filePath, ml_cutoff, mod_base_in_read):
 						if readcigarpositions[mod_base_i[-mod_base_i_index]] not in mod_base_in_read[read.query_name][read.reference_name].keys():
 							mod_base_in_read[read.query_name][read.reference_name][readcigarpositions[mod_base_i[-mod_base_i_index]]] = [ i,ml[i],mod_base_i[-mod_base_i_index],'-' ]
 
-		# for a forward alignment move through the read by moving in the increments reported by the mm tag
+		# for a forward alignment move through the alignment by moving in the increments reported by the mm tag
 		else:
 			read_modbase_pos = 0
 			for i, i_skip in enumerate(mm):
