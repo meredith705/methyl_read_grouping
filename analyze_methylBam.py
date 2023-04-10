@@ -5,12 +5,23 @@ import pysam
 from Bio.Seq import Seq
 import re
 import numpy as np
+import pandas as pd
+import itertools
+from scipy.spatial.distance import hamming
 
+# heatmap 
+import seaborn as sn
+import matplotlib.pyplot as plt
+from sklearn.decomposition import PCA
 
-#TODO: 
-'''	Plot some grouping of reads
-	Find areas where reads are sufficiently different to group
-	'''
+# louvain
+from scipy import sparse
+from sknetwork.clustering import Louvain, get_modularity
+from sknetwork.linalg import normalize
+from sknetwork.utils import get_membership
+from sknetwork.visualization import svg_graph, svg_bigraph
+from IPython.display import SVG
+
 
 def identify_metyl_tags(read):
 	''' the methyl tags can be either Mm/Ml or MM/ML for R10 or R9'''
@@ -45,14 +56,19 @@ def parse_mm_tag(read):
 	return modbase, mm
 
 def check_modbase_rev(seq,modbase,mod_base_i,mod_base_i_index):
-		# sanity check that that base is the modbase from the Mm Tag
-		if seq[ mod_base_i[-mod_base_i_index] ].upper() != modbase.upper():
-			print('base is not modbase',seq[:-mod_base_i_index].upper(), 'at',i,'. i_skip:', i_skip)
-			return -1
+	# sanity check that that base is the modbase from the Mm Tag
+	if seq[ mod_base_i[-mod_base_i_index]-1] != rev_comp(modbase).upper():
+		print('not cpg',seq[ mod_base_i[-mod_base_i_index]-1])
+	if seq[ mod_base_i[-mod_base_i_index] ].upper() != modbase.upper():
+		print('base is not modbase',seq[:-mod_base_i_index].upper(), 'at',i,'. i_skip:', i_skip)
+		return -1
 def check_modbase(seq,modbase,mod_base_i,read_modbase_pos):
-		if seq[ mod_base_i[read_modbase_pos] ].upper() != modbase.upper():
-			print('base is not modbase',seq[:read_modbase_pos].upper(), 'at',i,'. i_skip:', i_skip)
-			return -1
+	# sanity check that that base is the modbase from the Mm Tag
+	if seq[ mod_base_i[read_modbase_pos]+1 ].upper() != rev_comp(modbase).upper():
+		print('not cpg',seq[ mod_base_i[read_modbase_pos]+1 ])
+	if seq[ mod_base_i[read_modbase_pos] ].upper() != modbase.upper():
+		print('base is not modbase',seq[:read_modbase_pos].upper(), 'at',i,'. i_skip:', i_skip)
+		return -1
 
 def get_cigar_ref_pos(read):
 	''' parse the cigar string to obtain methylated cytosine positions
@@ -100,11 +116,25 @@ def get_cigar_ref_pos(read):
 
 	return readcigarpositions
 
-def write_read_mods_to_bed(mod_base_in_read):
+def write_read_mods_to_bed(chrom_modbase_pos):
 	''' write all read mods to a bed file per read'''
+	# chrom_modbase_pos: {ref_chrom : ref position : readName : [positon in mm tag, ml value, position in read, strand] }
+
+	# for chrom,position_dt in chrom_modbase_pos.items():
+	# 	# make an empty dataframe of the correct size. Maybe the reads can be stored in a set instead of dict
+	# 	df = pd.DataFrame(0, index=read_set, columns = sorted(list(position_dt.keys())) )
+	# 	# print(df)
+	# 	for pos in sorted(list(position_dt.keys())):
+	# 		print(pos,len(position_dt[pos].keys()),position_dt[pos].keys() ) 
+	# 		for read in list(position_dt[pos].keys()):
+	# 			# df.at[row,col]= new val
+	# 			df.at[read,pos] += 1
+	# 	print('filled\n',df)
+
+
 	for read,chroms in mod_base_in_read.items():
 
-		bfile = open(str(read)+'.mods.bed','w')
+		bfile = open('beds/'+str(read)+'.mods.bed','w')
 
 		for chrom , refPos in chroms.items():
 			for pos, modinfo in refPos.items():
@@ -115,21 +145,32 @@ def write_read_mods_to_bed(mod_base_in_read):
 					bfile.write(str(chrom)+'\t'+str(pos-1)+'\t'+str(pos)+'\t'+str(modinfo[1])+'\t'+str(modinfo[3])+'\n' )
 		bfile.close()
 
-def get_methyl_per_read(filePath, ml_cutoff, mod_base_in_read):
+def get_methyl_per_read(filePath, ml_cutoff, min_reads,mod_base_in_read):
 	''' iterate over all of the read mapping to a specified region using fetch(). 
 	Each iteration returns a AlignedSegment object which represents a single read along with its fields and optional tags:
 	'''
 	# open alignment file
 	samfile = pysam.AlignmentFile(filePath, "rb")
 
+	logfile = open('log.txt','w')
+
+	read_set = set()
+	chrom_modbase_pos = {}
+
 	# Fetch reads from region: chr20:1000000-1020000
-	# neuron loc chr20:63664503-63664830
+	# neuron loc chr20:63664503-63664830 chr20:63664503-63678780  'chr20',63664503,63678780):
+	# neuron loc #1: chr2:51026934-51027176
+	# SNRPN chr15:24953000-24958133 'chr15', 24953000, 24958133):
 	read_count = 0
 	mmTag, mlTag = '', ''
 
-	for read in samfile.fetch('chr20', 1000000, 1000020):
+	# TODO This won't always be per region....
+	for read in samfile.fetch('chr20',63664503,63678780):
 		strand = lambda x : '-' if x else '+'
-		print('\n',strand(read.is_reverse), read.mapq, read.reference_name, read.reference_start,read.reference_end, read.query_name)
+		# print('\n',strand(read.is_reverse), read.mapq, read.reference_name, read.reference_start,read.reference_end, read.query_name)
+		read_set.add(read.query_name)
+		bfile = open('beds/'+str(read.query_name)+'.mods.bed','w')
+		logfile.write('\n'+str(strand(read.is_reverse))+' '+ str(read.mapq)+' '+ str(read.reference_name)+' '+ str(read.reference_start)+' '+str(read.reference_end)+' '+str(read.query_name) )
 		read_count+=1
 		# get mm and ml tag information per read
 		# the methyl tags can be either Mm/Ml or MM/ML for R10 or R9
@@ -151,7 +192,7 @@ def get_methyl_per_read(filePath, ml_cutoff, mod_base_in_read):
 		# get reference positions that account for INDELs/Clips by parsing the cigar string
 		readcigarpositions = get_cigar_ref_pos(read)
 
-		# for a reverse alignment move through the alignment from back to front counting rev complement C's (aka G) in increments reported by mm tag
+		# for a REVERSE(-) alignment move through the alignment from back to front counting rev complement C's (aka G) in increments reported by mm tag
 		if read.is_reverse:
 			mod_base_i_index = 0 
 			for i, i_skip in enumerate(mm):
@@ -159,20 +200,34 @@ def get_methyl_per_read(filePath, ml_cutoff, mod_base_in_read):
 				# the base after the # to skip is the modified base, so add 1
 				mod_base_i_index  += int(i_skip) + 1
 
-				# only count alignments after the read.query_alignment_start position
+				# only count modified bases after the read.query_alignment_start position
 				if mod_base_i[-mod_base_i_index] > read.query_alignment_start and mod_base_i[-mod_base_i_index] < read.query_alignment_end:
 					check_modbase_rev(seq,modbase,mod_base_i,mod_base_i_index)
 					# if the ml probability of being modified is > cutoff,
 					if ml[i] >= ml_cutoff:
-						# check for query name in dict keys
-						if read.query_name not in mod_base_in_read.keys():
-							# create a dictionary entry with the read as key
-							#  read mod base dict : {readName : ref chrom : ref position : [positon in mm tag, ml value, position in read, strand]}
-							mod_base_in_read[read.query_name]={read.reference_name : {readcigarpositions[mod_base_i[-mod_base_i_index]] : [ i,ml[i],mod_base_i[-mod_base_i_index],'-' ]} }
-						if readcigarpositions[mod_base_i[-mod_base_i_index]] not in mod_base_in_read[read.query_name][read.reference_name].keys():
-							mod_base_in_read[read.query_name][read.reference_name][readcigarpositions[mod_base_i[-mod_base_i_index]]] = [ i,ml[i],mod_base_i[-mod_base_i_index],'-' ]
+						# write to bed: 
+						bfile.write(str(read.reference_name)+'\t'+str(readcigarpositions[mod_base_i[-mod_base_i_index]]-1)+'\t'+str(readcigarpositions[mod_base_i[-mod_base_i_index]])+'\t'+str(ml[i])+'\t'+'-'+'\n' )
 
-		# for a forward alignment move through the alignment by moving in the increments reported by the mm tag
+						pos = readcigarpositions[mod_base_i[-mod_base_i_index]]
+						# check that the chromomsome is a key already
+						# chrom_modbase_pos: {ref_chrom : ref position : readName : [positon in mm tag, ml value, position in read, strand] }
+						if read.reference_name not in chrom_modbase_pos.keys():
+							chrom_modbase_pos[read.reference_name]={pos : {read.query_name : [ i,ml[i],mod_base_i[-mod_base_i_index],'-' ]} }
+
+						# check if position is in the ditionary 
+						if pos not in chrom_modbase_pos[read.reference_name].keys():
+							chrom_modbase_pos[read.reference_name][pos] = {read.query_name : [ i,ml[i],mod_base_i[-mod_base_i_index],'-' ]}
+							logfile.write('\t'+str(i)+' '+str(i_skip)+' -strand pos '+'\t'+str(pos)+' '+str(read.query_name)+'\n')
+
+						elif readcigarpositions[mod_base_i[-mod_base_i_index]] in chrom_modbase_pos[read.reference_name].keys():
+
+							chrom_modbase_pos[read.reference_name][pos][read.query_name] = [ i,ml[i],mod_base_i[-mod_base_i_index],'-' ]
+							logfile.write('\t'+str(i)+' '+str(i_skip)+' - existing strand pos '+'\t'+str(pos)+' '+str(read.query_name)+'\n')
+
+				# if i>5:
+				# 	break
+
+		# for a FORWARD(+) alignment move through the alignment by moving in the increments reported by the mm tag
 		else:
 			read_modbase_pos = 0
 			for i, i_skip in enumerate(mm):
@@ -184,7 +239,7 @@ def get_methyl_per_read(filePath, ml_cutoff, mod_base_in_read):
 				if i>0:
 					read_modbase_pos+=1
 
-				# only count alignments after the read.query_alignment_start position
+				# only count modified bases after the read.query_alignment_start position
 				if mod_base_i[read_modbase_pos] > read.query_alignment_start and mod_base_i[read_modbase_pos] < read.query_alignment_end:
 
 					# sanity check that that base is the modbase from the Mm Tag
@@ -192,26 +247,247 @@ def get_methyl_per_read(filePath, ml_cutoff, mod_base_in_read):
 
 					# if the ml probability of being modified is > cutoff, 
 					# store the modified base location as it 0-based position in the read sequence string
-					# read mod base dict : {readName : ref chrom : ref position : [positon in mm tag, ml value, position in read, strand]}
 					if ml[i] >= ml_cutoff:
-						if read.query_name not in mod_base_in_read.keys():
-							mod_base_in_read[read.query_name]={read.reference_name : {readcigarpositions[mod_base_i[read_modbase_pos]] : [ i,ml[i],mod_base_i[read_modbase_pos],'+' ]} }
-						if readcigarpositions[mod_base_i[read_modbase_pos]] not in mod_base_in_read[read.query_name][read.reference_name].keys():
-							mod_base_in_read[read.query_name][read.reference_name][readcigarpositions[mod_base_i[read_modbase_pos]]] = [ i,ml[i],mod_base_i[read_modbase_pos],'+' ]
+						# write to bed 
+						bfile.write(str(read.reference_name)+'\t'+str(readcigarpositions[mod_base_i[read_modbase_pos]])+'\t'+str(readcigarpositions[mod_base_i[read_modbase_pos]]+1)+'\t'+str(ml[i])+'\t'+'+'+'\n' )
+
+						pos = readcigarpositions[mod_base_i[read_modbase_pos]]+1
+						# check that the chromomsome is a key already
+						# chrom_modbase_pos: {ref_chrom : ref position : readName : [positon in mm tag, ml value, position in read, strand] }
+						if read.reference_name not in chrom_modbase_pos.keys():
+							chrom_modbase_pos[read.reference_name]={pos : {read.query_name : [ i,ml[i],mod_base_i[read_modbase_pos],'+' ]} }
+						# check if position is in the ditionary 
+						if pos not in chrom_modbase_pos[read.reference_name].keys():
+							# print('\t',i,i_skip,'+ strand pos:',readcigarpositions[mod_base_i[read_modbase_pos]])
+							logfile.write('\t'+str(i)+' '+str(i_skip)+' + strand pos '+str(pos)+' '+str(read.query_name)+'\n' )
+							chrom_modbase_pos[read.reference_name][pos] = {read.query_name : [ i,ml[i],mod_base_i[read_modbase_pos],'+' ]}
+
+						elif pos in chrom_modbase_pos[read.reference_name].keys():
+							chrom_modbase_pos[read.reference_name][pos][read.query_name] = [ i,ml[i],mod_base_i[read_modbase_pos],'+' ]
+							# print('\t',i,i_skip,'+ strand existing pos:',readcigarpositions[mod_base_i[read_modbase_pos]])
+							logfile.write('\t'+str(i)+' '+str(i_skip)+' + strand pos '+str(pos)+' '+str(read.query_name)+'\n' )				
+
+		bfile.close()
+
+	for chrom,position_dt in chrom_modbase_pos.items():
+		# make an empty dataframe of the correct size. Maybe the reads can be stored in a set instead of dict
+		df = pd.DataFrame(0, index=read_set, columns = sorted(list(position_dt.keys())) )
+		# print(df)
+		for pos in sorted(list(position_dt.keys())):
+			# print(pos,len(position_dt[pos].keys()),position_dt[pos].keys() ) 
+			for read in list(position_dt[pos].keys()):
+				# df.at[row,col]= new val
+				if position_dt[pos][read][3] == '-':
+					if pos-1 in position_dt.keys():
+						if df.at[read,pos-1] > 0:
+							print('\n',read, pos, '\n\t',position_dt[pos],'\n\t',position_dt[pos-1])
+							logfile.write('minus strand with more than 1 methyl call at position: '+str(pos)+'\n'+str(read) +'\t'+str(pos) +'\n\t'+str(position_dt[pos])+'\n\t'+str(position_dt[pos-1]))
+							df.at[read,pos]+=1
+						else:
+							df.at[read,pos-1]+=1
+					else:
+						df.at[read,pos] += 1
+				else:
+					df.at[read,pos] += 1
+
+	# remove columns with less than 3 reads supporting that methyl position
+	df = df.loc[:, df.sum(axis=0) > min_reads]
+
+
+	# run_louvain(df)
+	make_quick_hm(df)
+	make_pca(df)
 
 	samfile.close()
 
-	write_read_mods_to_bed(mod_base_in_read)
+	logfile.close()
 
-	return mod_base_in_read
+	# write_read_mods_to_bed(chrom_modbase_pos)
+
+	return chrom_modbase_pos
+
+def make_quick_hm(data):
+	''' sort and heatmap'''
+
+	data.sort_values(by=list(data),axis=0, inplace=True,ascending=False)
+	print('post sort\n',data)
+	data.to_csv('methyl_dataframe.csv')
+	hm = sn.heatmap(data = data)
+	plt.savefig("hm.png")
+	plt.clf()
+
+
+def make_pca(data):
+	fig = plt.figure(1, figsize=(8, 6))
+	ax = fig.add_subplot(111, projection="3d", elev=-150, azim=110)
+	X_reduced = PCA(n_components=3).fit_transform(data)
+	ax.scatter(
+	X_reduced[:, 0],
+	X_reduced[:, 1],
+	X_reduced[:, 2],
+	cmap=plt.cm.Set1,
+	edgecolor="k",
+	s=40,
+	)
+
+	ax.set_title("First three PCA directions")
+	ax.set_xlabel("1st eigenvector")
+	ax.xaxis.set_ticklabels([])
+	ax.set_ylabel("2nd eigenvector")
+	ax.yaxis.set_ticklabels([])
+	ax.set_zlabel("3rd eigenvector")
+	ax.zaxis.set_ticklabels([])
+
+	plt.savefig("pca3D.png")
+	plt.clf()
 
 
 
+def run_louvain(df):
+	''' run louvain clustering on my dataframe  '''
+	print('louvain:')
+	sdf = df.astype(pd.SparseDtype('int',0))
+	cols = list(df)
+	rows = list(df.index)
 
-def main(bamPath):
+	print('sparse',sdf.head())
+	biadj = sdf.sparse.to_coo()
+	biadj = sparse.csr_matrix(biadj)
+	
+	louvain = Louvain()
+	louvain.fit(biadj)
+	# labels_row = louvain.labels_row_
+	# labels_col = louvain.lables_col_
+
+	image = svg_bigraph(biadj, rows, cols, filename='biadj_graph.svg')
+	# SVG(image)
+
+def get_chrom(read):
+	if len(list(read.keys())) == 1: 
+		return list(read.keys())[0]
+	else:
+		print(read.keys())
+
+def exact_overlap_k(pos1,pos2,k):
+	''' check if k suffix/prefix methylated positions overlap'''
+	return pos1[-k:]==pos2[:k]
+
+def hamming_overlap_k(pos1,pos2,k):
+	''' check if k suffix/prefix methylated positions overlap'''
+	return hamming(pos1[-k:],pos2[:k])
+
+def find_overlap_index(a,b):
+	''' find the index where b begins to overlap a '''
+	for i,ai in enumerate(a): 
+		if ai>=b[0]:
+			return i
+def find_overlap_end_index(a,b):
+	''' find the index where b ends overlapping a '''
+	end_index = None
+	for i,ai in enumerate(a): 
+		if ai>=b[-1]:
+			end_index = i-1
+	if not end_index:
+		end_index = len(a)-1
+	return end_index
+
+def make_overlap_edges(reads_df,k):
+	''' find reads that overlap methyl positions '''
+	# TODO:
+	# consider dataframe of positions, rows are reads, where alignments are already lined up
+
+	links = []
+	for a,b in itertools.combinations(reads_df,2):
+		# print('a',reads_df[a],'b',reads_df[b])
+		
+		if get_chrom(reads_df[a])==get_chrom(reads_df[b]):
+			a_pos = sorted(list(reads_df[a][get_chrom(reads_df[a])].keys()))
+			b_pos = sorted(list(reads_df[b][get_chrom(reads_df[b])].keys()))
+			# print('a',a_pos[:10],reads_df[a][get_chrom(reads_df[a])][a_pos[0]])
+			# print('b',b_pos[:10],reads_df[b][get_chrom(reads_df[b])][b_pos[0]])
+			# check if reads are aligned in the same orientation
+			if reads_df[a][get_chrom(reads_df[a])][a_pos[0]][-1] == reads_df[b][get_chrom(reads_df[b])][b_pos[0]][-1]:
+				# print(a,b)
+				# if b overlaps a check for suffix of a matching prefix of b
+				if (a_pos[0] < b_pos[0]) and (a_pos[-1] > b_pos[0]):
+
+					overlap_start = find_overlap_index(a_pos,b_pos)
+					overlap_end   = find_overlap_end_index(a_pos,b_pos)
+
+					if overlap_end:
+						if (overlap_end - overlap_start) > len(b_pos):
+							overlap_end = overlap_start+len(b_pos)-1
+					
+					# print('b over a: overlap_start',overlap_start,'-',overlap_end,len(a_pos),'length of overlap to end of a match',len(a_pos[overlap_start:overlap_end]),'b',len(b_pos))
+					# if exact_overlap_k(a_pos[overlap_start::],b_pos,len(a_pos[overlap_start::])):
+					# print('exact:',exact_overlap_k(a_pos[overlap_start:overlap_end],b_pos[:len(a_pos[overlap_start:overlap_end])],len(a_pos[overlap_start::])-5) )
+
+					# print('ham:',hamming_overlap_k(a_pos[overlap_start:overlap_end],b_pos[:len(a_pos[overlap_start:overlap_end])],len(a_pos[overlap_start:overlap_end])-5) )
+
+					# count each position that matches between these reads
+					match_count = 0
+					for i, aa in enumerate(a_pos[overlap_start:overlap_end]):
+						if aa in b_pos[:len(a_pos[overlap_start:overlap_end])] :# or aa+1 in b_pos or aa-1 in b_pos:
+							# print(aa, b_pos.index(aa)) #,b_pos.index(aa+1),b_pos.index(aa-1))
+							match_count+=1
+						elif aa+1 in b_pos[:len(a_pos[overlap_start:overlap_end])]:
+							# print(aa,'+1',b_pos.index(aa+1))
+							match_count+=1
+						elif aa-1 in b_pos[:len(a_pos[overlap_start:overlap_end])]:
+							# print(aa,'-1',b_pos.index(aa-1))
+							match_count+=1
+					print(a,b,'match_count:',match_count, match_count/len(a_pos[overlap_start:overlap_end]))
+
+				elif (b_pos[0] < a_pos[0]) and (b_pos[-1] > a_pos[0]):
+					overlap_start = find_overlap_index(b_pos,a_pos)
+					everlap_end   = find_overlap_end_index(b_pos,a_pos)
+					print('a over b: overlap_start',overlap_start,len(b_pos[overlap_start:overlap_end]),a,b)
+					# if exact_overlap_k(a_pos[overlap_start::],b_pos,len(a_pos[overlap_start:overlap_end])):
+					print(exact_overlap_k(b_pos[overlap_start::],a_pos,len(b_pos[overlap_start:overlap_end])))
+					print(hamming_overlap_k(b_pos[overlap_start:overlap_end],a_pos,len(b_pos[overlap_start:overlap_end])))
+					# count each position that matches between these reads
+					match_count = 0
+					for i, aa in enumerate(a_pos[overlap_start:overlap_end]):
+						if aa in b_pos[:len(a_pos[overlap_start:overlap_end])] :# or aa+1 in b_pos or aa-1 in b_pos:
+							# print(aa, b_pos.index(aa)) #,b_pos.index(aa+1),b_pos.index(aa-1))
+							match_count+=1
+						elif aa+1 in b_pos[:len(a_pos[overlap_start:overlap_end])]:
+							# print(aa,'+1',b_pos.index(aa+1))
+							match_count+=1
+						elif aa-1 in b_pos[:len(a_pos[overlap_start:overlap_end])]:
+							# print(aa,'-1',b_pos.index(aa-1))
+							match_count+=1
+					print(a,b,'match_count:',match_count, match_count/len(a_pos[overlap_start:overlap_end]))
+					# print(b_pos[overlap_start::],'\n',a_pos)
+							# break
+
+
+def plot_modbase_locations(mod_base_in_read):
+	''' plot the reads '''
+
+	for read,chrom in mod_base_in_read.items():
+		print(read)
+		c=0
+		for chrom,pos in chrom.items():
+			print(chrom, list(pos.keys())[:5])
+
+	return
+
+def overlap_matrix(mod_base_in_read):
+	''' make a matrix of every cpg site and fill rows with positions that each read is methylated 
+		reads x cpg sites
+	 '''
+
+	ref_cpgs = open('http://public.gi.ucsc.edu/~memeredith/methyl/beds/cpg_hg38.bed')
+
+
+
+def main(bamPath,min_prob,min_reads):
 
 	# set ml prob cutoff
-	ml_min_prob = 0.5
+	# if not (min_prob):
+	# 	min_prob=0.5
+	ml_min_prob = min_prob
 	ml_cutoff = ml_min_prob * 255
 
 	# dictionary to store reads and modified bases in those reads
@@ -219,9 +495,14 @@ def main(bamPath):
 	mod_base_in_read = {}
 	
 	# run methyl analyze per read using url
+	mod_base_in_read = get_methyl_per_read(bamPath,ml_cutoff,min_reads, mod_base_in_read)
 	# mod_base_in_read = get_methyl_per_read("http://public.gi.ucsc.edu/~memeredith/methyl/HG002_card/HG002_ONT_card_2_GRCh38_PEPPER_Margin_DeepVariant.haplotagged.bam",ml_cutoff, mod_base_in_read)
-	mod_base_in_read = get_methyl_per_read(bamPath,ml_cutoff, mod_base_in_read)
 	# mod_base_in_read = get_methyl_per_read("HG002_ONT_card_2_GRCh38_PEPPER_Margin_DeepVariant.chr20_run2.haplotagged.bam",ml_cutoff, mod_base_in_read)
+
+	# plot_modbase_locations(mod_base_in_read)
+
+	make_overlap_edges(mod_base_in_read, 10)
+
 
 
 
@@ -231,7 +512,7 @@ if __name__ == "__main__":
 	'''
 	Python script to cluster reads in a bam by their methyl tag provile
 
-	Usage: python3.9 analyze_methylBam.py 
+	Usage: python3.9 analyze_methylBam.py -b http://public.gi.ucsc.edu/~memeredith/methyl/HG002_card/HG002_ONT_card_2_GRCh38_PEPPER_Margin_DeepVariant.haplotagged.bam
 	-b bam 
 	'''
 	
@@ -245,8 +526,24 @@ if __name__ == "__main__":
 		help="Input BAM, can be file path or http URL "
 	)
 
+	parser.add_argument(
+		"-p",
+		required=False,
+		type=float,
+		default=0.5,
+		help="Minimum probability cutoff for the likelyhood that a position is methylated (ml tag) "
+	)
+
+	parser.add_argument(
+		"-r",
+		required=False,
+		type=int,
+		default=3,
+		help="Minimum number of reads to support a methyl position to be included in analysis "
+	)
+
 	args = parser.parse_args()
-	main(bamPath=args.b)
+	main(bamPath=args.b, min_prob=args.p, min_reads=args.r)
 
 	# parser.add_argument(
 	# 	"-r",
