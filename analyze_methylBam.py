@@ -145,7 +145,7 @@ def write_read_mods_to_bed(chrom_modbase_pos):
 					bfile.write(str(chrom)+'\t'+str(pos-1)+'\t'+str(pos)+'\t'+str(modinfo[1])+'\t'+str(modinfo[3])+'\n' )
 		bfile.close()
 
-def get_methyl_per_read(filePath, ml_cutoff, min_reads,mod_base_in_read):
+def get_methyl_per_read(filePath, ml_cutoff, min_reads,mod_base_in_read,sample_name):
 	''' iterate over all of the read mapping to a specified region using fetch(). 
 	Each iteration returns a AlignedSegment object which represents a single read along with its fields and optional tags:
 	'''
@@ -280,7 +280,7 @@ def get_methyl_per_read(filePath, ml_cutoff, min_reads,mod_base_in_read):
 				if position_dt[pos][read][3] == '-':
 					if pos-1 in position_dt.keys():
 						if df.at[read,pos-1] > 0:
-							print('\n',read, pos, '\n\t',position_dt[pos],'\n\t',position_dt[pos-1])
+							# print('\n',read, pos, '\n\t',position_dt[pos],'\n\t',position_dt[pos-1])
 							logfile.write('minus strand with more than 1 methyl call at position: '+str(pos)+'\n'+str(read) +'\t'+str(pos) +'\n\t'+str(position_dt[pos])+'\n\t'+str(position_dt[pos-1]))
 							df.at[read,pos]+=1
 						else:
@@ -295,8 +295,14 @@ def get_methyl_per_read(filePath, ml_cutoff, min_reads,mod_base_in_read):
 
 
 	# run_louvain(df)
-	make_quick_hm(df)
-	make_pca(df)
+	make_quick_hm(df,sample_name)
+	make_pca(df,sample_name)
+
+	print(df.T.corr())
+	hm = sn.heatmap(data = df.T.corr())
+	plt.title(sample_name)
+	plt.savefig(sample_name+".corr.hm.png")
+	plt.clf()
 
 	samfile.close()
 
@@ -306,18 +312,19 @@ def get_methyl_per_read(filePath, ml_cutoff, min_reads,mod_base_in_read):
 
 	return chrom_modbase_pos
 
-def make_quick_hm(data):
+def make_quick_hm(data,title):
 	''' sort and heatmap'''
 
 	data.sort_values(by=list(data),axis=0, inplace=True,ascending=False)
 	print('post sort\n',data)
 	data.to_csv('methyl_dataframe.csv')
 	hm = sn.heatmap(data = data)
-	plt.savefig("hm.png")
+	plt.title(title)
+	plt.savefig(title+".hm.png")
 	plt.clf()
 
 
-def make_pca(data):
+def make_pca(data,title):
 	fig = plt.figure(1, figsize=(8, 6))
 	ax = fig.add_subplot(111, projection="3d", elev=-150, azim=110)
 	X_reduced = PCA(n_components=3).fit_transform(data)
@@ -330,7 +337,7 @@ def make_pca(data):
 	s=40,
 	)
 
-	ax.set_title("First three PCA directions")
+	ax.set_title(title)
 	ax.set_xlabel("1st eigenvector")
 	ax.xaxis.set_ticklabels([])
 	ax.set_ylabel("2nd eigenvector")
@@ -338,7 +345,7 @@ def make_pca(data):
 	ax.set_zlabel("3rd eigenvector")
 	ax.zaxis.set_ticklabels([])
 
-	plt.savefig("pca3D.png")
+	plt.savefig(title+".pca3D.png")
 	plt.clf()
 
 
@@ -482,7 +489,7 @@ def overlap_matrix(mod_base_in_read):
 
 
 
-def main(bamPath,min_prob,min_reads):
+def main(bamPath,min_prob,min_reads,sample_name):
 
 	# set ml prob cutoff
 	# if not (min_prob):
@@ -495,7 +502,7 @@ def main(bamPath,min_prob,min_reads):
 	mod_base_in_read = {}
 	
 	# run methyl analyze per read using url
-	mod_base_in_read = get_methyl_per_read(bamPath,ml_cutoff,min_reads, mod_base_in_read)
+	mod_base_in_read = get_methyl_per_read(bamPath,ml_cutoff,min_reads, mod_base_in_read,sample_name)
 	# mod_base_in_read = get_methyl_per_read("http://public.gi.ucsc.edu/~memeredith/methyl/HG002_card/HG002_ONT_card_2_GRCh38_PEPPER_Margin_DeepVariant.haplotagged.bam",ml_cutoff, mod_base_in_read)
 	# mod_base_in_read = get_methyl_per_read("HG002_ONT_card_2_GRCh38_PEPPER_Margin_DeepVariant.chr20_run2.haplotagged.bam",ml_cutoff, mod_base_in_read)
 
@@ -527,6 +534,13 @@ if __name__ == "__main__":
 	)
 
 	parser.add_argument(
+		"-s",
+		required=True,
+		type=str,
+		help="sample name "
+	)
+
+	parser.add_argument(
 		"-p",
 		required=False,
 		type=float,
@@ -543,7 +557,7 @@ if __name__ == "__main__":
 	)
 
 	args = parser.parse_args()
-	main(bamPath=args.b, min_prob=args.p, min_reads=args.r)
+	main(bamPath=args.b, min_prob=args.p, min_reads=args.r, sample_name=args.s)
 
 	# parser.add_argument(
 	# 	"-r",
