@@ -582,8 +582,7 @@ def make_overlap_edge_weights(reads_dict, rdf, read_strands, sample_name):
 						# print(df_values)
 						# print('avalue', df_values[[rdf.loc[a, aPos]]] )
 						# print('bvalue', df_values[[rdf.loc[b, aPos]]] )
-						if -1 in values:
-							values.pop(values.index(-1))
+
 						# count number of reads with 1 or 0 at this position
 						read_cov_at_pos = positional_frequencies.loc[:, aPos].sum()			#rdf.loc[:, aPos].value_counts()[values].sum()
 
