@@ -639,51 +639,6 @@ def make_overlap_edge_weights(reads_dict, rdf, read_strands, sample_name):
 	make_quick_hm(read_scores, sample_name+'.scores')
 	ax = read_scores.plot.hist(legend=False).get_figure().savefig(sample_name+'.scores.hist.png')
 
-
-'''
-				# count each position that matches between these reads
-				match_count = 0
-				for i, aa in enumerate(a_pos[overlap_start:overlap_end]):
-					if aa in b_pos[:len(a_pos[overlap_start:overlap_end])] :# or aa+1 in b_pos or aa-1 in b_pos:
-						# print(aa, b_pos.index(aa)) #,b_pos.index(aa+1),b_pos.index(aa-1))
-						match_count+=1
-					elif aa+1 in b_pos[:len(a_pos[overlap_start:overlap_end])]:
-						# print(aa,'+1',b_pos.index(aa+1))
-						match_count+=1
-					elif aa-1 in b_pos[:len(a_pos[overlap_start:overlap_end])]:
-						# print(aa,'-1',b_pos.index(aa-1))
-						match_count+=1
-				if len(a_pos[overlap_start:overlap_end])>100:
-					# print(a,b,'match_count:',match_count, match_count/len(a_pos[overlap_start:overlap_end]))
-					match_percentages.write(('\t').join([a,b,str(match_count), str(round(match_count/len(a_pos[overlap_start:overlap_end]),4)),'\n']) )
-
-					if match_count > match_count_min and match_count/len(a_pos[overlap_start:overlap_end]):
-						links.append((a,b))
-
-'''
-'''			elif (b_pos[0] < a_pos[0]) and (b_pos[-1] > a_pos[0]):
-				overlap_start = find_overlap_index(b_pos,a_pos)
-				overlap_end   = find_overlap_end_index(b_pos,a_pos)
-
-				# count each position that matches between these reads
-				match_count = 0
-				for i, aa in enumerate(a_pos[overlap_start:overlap_end]):
-					if aa in b_pos[:len(a_pos[overlap_start:overlap_end])] :# or aa+1 in b_pos or aa-1 in b_pos:
-						# print(aa, b_pos.index(aa)) #,b_pos.index(aa+1),b_pos.index(aa-1))
-						match_count+=1
-					elif aa+1 in b_pos[:len(a_pos[overlap_start:overlap_end])]:
-						# print(aa,'+1',b_pos.index(aa+1))
-						match_count+=1
-					elif aa-1 in b_pos[:len(a_pos[overlap_start:overlap_end])]:
-						# print(aa,'-1',b_pos.index(aa-1))
-						match_count+=1
-				if len(a_pos[overlap_start:overlap_end])>100:
-					# print(a,b,'match_count:',match_count, match_count/len(a_pos[overlap_start:overlap_end]))
-					match_percentages.write(('\t').join([a,b,str(match_count), str(round(match_count/len(a_pos[overlap_start:overlap_end]),4)),'\n']) )
-					if match_count > match_count_min and match_count/len(a_pos[overlap_start:overlap_end]):
-						links.append((a,b))
-				# print(b_pos[overlap_start::],'\n',a_pos)
-						# break'''
 	# match_percentages.close()
 
 	# print(links)
