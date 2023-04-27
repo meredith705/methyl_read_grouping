@@ -572,8 +572,9 @@ def make_overlap_edge_weights(reads_dict, rdf, read_strands, sample_name):
 						# print('b', [rdf.loc[b, aPos]], 'count', rdf.loc[:, aPos].value_counts()[rdf.loc[b, aPos]])
 
 						# count only 0,1 as denominator of frequency calculation
-						df_values = rdf.loc[:, aPos].value_counts()
-						values = list(df_values.index)
+						# dynamic proramming can help speed up this look up at each position for each read
+						# df_values = rdf.loc[:, aPos].value_counts()
+						# values = list(df_values.index)
 
 						a_char = rdf.loc[a, aPos]
 						b_char = rdf.loc[b, aPos]
@@ -586,7 +587,7 @@ def make_overlap_edge_weights(reads_dict, rdf, read_strands, sample_name):
 						# count number of reads with 1 or 0 at this position
 						read_cov_at_pos = positional_frequencies.loc[:, aPos].sum()			#rdf.loc[:, aPos].value_counts()[values].sum()
 
-						# TODO dynamic proramming can help speed up this look up at each position for each read
+
 						# random overlap ( denominator )
 						# frequency of the symbol at position i in read a and read b.           #Wrt the # of reads that cover that position
 						# qxi = df_values[a_char] / rdf.shape[0]  # read_cov_at_pos
