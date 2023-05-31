@@ -508,8 +508,6 @@ def make_overlap_edge_weights(reads_dict, rdf, read_strands, sample_name):
                             pxi_giv_c = qci * cpd.loc[a_char, 'C'] * cpd.loc[b_char, 'C']
                             pxi_giv_m = qmi * cpd.loc[a_char, 'M'] * cpd.loc[b_char, 'M']
                             # then add them together
-                            # print('\n', aPos, 'P(xy|M)', pxi_giv_c, '+', pxi_giv_m, '=', pxi_giv_c + pxi_giv_m )
-                            # print('\tP(xy|R)', qxi * qyi)
                             pxi_yi_sum = pxi_giv_c + pxi_giv_m
                             px_y_r_prod = qxi * qyi
                             # store the log of the ratio
