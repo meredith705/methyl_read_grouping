@@ -13,7 +13,7 @@ Note: diseased brains may complicate this analysis as their methylation profiles
 Methods: 
 Parse the bam and get all the methyl sites in terms of reference cooridnates. 
 Build an overlap graph of the CpG sites 
-	Calculate overlap with a model that accounts for
+	Calculate overlap with a model that accounts for: <br>
 		Measurement error 
 		Information at each site ( degree of mixed methylation at each stie) 
 		Remove isolated vertices 
