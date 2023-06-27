@@ -14,10 +14,10 @@ Methods: <br>
 Parse the bam and get all the methyl sites in terms of reference cooridnates. <br>
 Build an overlap graph of the CpG sites <br>
 	Calculate overlap with a model that accounts for: <br>
-	* Measurement error 
-	* Information at each site ( degree of mixed methylation at each stie) <br>
-	* Remove isolated vertices <br>
-	* Keep significant overlaps constructs local ‘methylotpyes’ <br>
+* Measurement error 
+* Information at each site ( degree of mixed methylation at each stie) <br>
+* Remove isolated vertices <br>
+* Keep significant overlaps constructs local ‘methylotpyes’ <br>
 Use this graph to infer cell types within the sample 
 
 
