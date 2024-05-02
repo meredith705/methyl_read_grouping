@@ -15,7 +15,7 @@ from scipy.spatial.distance import hamming
 
 from utils import bam_functions as bf
 from utils import graph_utils as graphing
-from utils import methylBam as mb
+from utils import methylBam as mB
 
 # static bam functions
 import sys
