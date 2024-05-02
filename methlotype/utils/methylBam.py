@@ -205,7 +205,6 @@ class MethylBam:
         logfile.close()
 
         # write_read_mods_to_bed(chrom_modbase_pos)
-        print(len(self.mod_base_in_read), df_region_only.shape, len(read_strands))
 
         return self.mod_base_in_read, df_region_only, read_strands
 
