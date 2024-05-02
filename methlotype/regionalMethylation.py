@@ -15,7 +15,7 @@ from scipy.spatial.distance import hamming
 
 from utils import bam_functions as bf
 from utils import graph_utils as graphing
-from utils import methylBam as MethylBam
+from utils import methylBam as mb
 
 # static bam functions
 import sys
@@ -178,18 +178,8 @@ if __name__ == "__main__":
 	Python script to cluster reads in a bam by their methyl tag provile
 
 	Usage: 
-	python3.9 analyze_methylBam.py -b http://public.gi.ucsc.edu/~memeredith/methyl/HG002_card/HG002_ONT_card_2_GRCh38_PEPPER_Margin_DeepVariant.haplotagged.bam
-	-s sample_name -r chr20 63664503 63678780
-	
-	# 'chr15', 24953000, 24958133):#'chr20',63664503,63678780):#'chr2',51026934,51027176):#
-	    # neuron loc chr20:63664503-63664830 chr20:63664503-63678780  'chr20',63664503,63678780):
-	    chr20:58815000-58895000
-        # neuron loc #1: chr2:51026934-51027176
-        # SNRPN chr15:24953000-24958133 'chr15', 24953000, 24958133):     'chr15',24955941,24955999):#    'chr15', 24954860,24956812):#
-	python3.9 ../../../methlotype/analyze_methylBam.py -b http://public.gi.ucsc.edu/~memeredith/methyl/HG002_card/HG002_ONT_card_2_GRCh38_PEPPER_Margin_DeepVariant.haplotagged.bam -s HG002.snrpn -r chr15 24953000 24958133
-	
-    https://public.gi.ucsc.edu/~memeredith/methyl/beds/methylation_R9/HG002_R9_R10/R9_R10_HG002/HG002_R9_phased.mod.hg38.bam
-
+	python3.9 methlotype/regionalMethylation.py -b https://public.gi.ucsc.edu/~memeredith/methyl/beds/methylation_R9/HG002_R9_R10/R9_R10_HG002/HG002_R9_phased.mod.hg38.bam \
+    -s HG002_R9 -d Hs_EPDnew_006_hg38.bed --heatmap 0 -e EPDnew06_promoters -p 10
     '''
 
     parser = argparse.ArgumentParser()
