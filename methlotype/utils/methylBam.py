@@ -179,7 +179,6 @@ class MethylBam:
         # run_louvain(df)
         
         # select only the region, instead of the flanks
-        print('len modbase_pos', len(chrom_modbase_pos.keys()))
         if len(chrom_modbase_pos.keys()) > 0:
             sloppy_start = start - self.slop
             sloppy_end = end + self.slop
