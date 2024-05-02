@@ -56,8 +56,7 @@ class MethylBam:
         else:
             return -1
 
-        # TODO This won't always be per region....
-        # TODO maybe filter out short read alignments, of some cutoff
+        # TODO MAKE beds directory
         for read in samfile.fetch(chromosome, start, end):
             # store some easy access metadata
             read_set.add(read.query_name)
@@ -180,9 +179,13 @@ class MethylBam:
         # run_louvain(df)
         
         # select only the region, instead of the flanks
-        sloppy_start = start - self.slop
-        sloppy_end = end + self.slop
-        df_region_only = df.loc[:, sloppy_start:sloppy_end]
+        print('len modbase_pos', len(chrom_modbase_pos.keys()))
+        if len(chrom_modbase_pos.keys()) > 0:
+            sloppy_start = start - self.slop
+            sloppy_end = end + self.slop
+            df_region_only = df.loc[:, sloppy_start:sloppy_end]
+        else: 
+            df_region_only=pd.DataFrame()
 
         if self.heatmap:
             print('heatmap',datetime.datetime.now())
@@ -202,6 +205,7 @@ class MethylBam:
         logfile.close()
 
         # write_read_mods_to_bed(chrom_modbase_pos)
+        print(len(self.mod_base_in_read), df_region_only.shape, len(read_strands))
 
         return self.mod_base_in_read, df_region_only, read_strands
 
