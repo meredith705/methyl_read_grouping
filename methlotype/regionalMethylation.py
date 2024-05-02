@@ -16,10 +16,10 @@ from scipy.spatial.distance import hamming
 from utils import bam_functions as bf
 from utils import graph_utils as graphing
 from utils import methylBam as mB
-
+"""
 # static bam functions
 import sys
-"""
+
 # append the path of the current directory
 sys.path.append(".")
 # from .bam_functions import *
@@ -112,12 +112,12 @@ def aggregated_methylation_per_region(input_arg_list):
         agg_region_mean = str(round((row_sums[1] *100) / (row_sums[0]+row_sums[1]) ,4))
         region_std = str(round(rdf.std().mean() ,4))
         read_depth = str(round(len(mod_base_in_read.keys()) ,4))
-        num_cpgs = str(round(rdf.shape[1] ,4))
-        pass_min_cpgs = str(rdf.shape[1]>=min_cpgs)
+        num_cpgs = str(round(read_cov.shape[1] ,4))
+        pass_min_cpgs = str(read_cov.shape[1]>=min_cpgs)
 
-        print("\nchr","start","end","agg_pct_mean", "agg_region_mean", "region_std", "read_depth", "num_cpgs", "pass_min_cpgs", sep="\t")
-        print("\t".join(region),agg_pct_mean, agg_region_mean, region_std, 
-            read_depth, num_cpgs, pass_min_cpgs, sep="\t")
+        # print("\nchr","start","end","agg_pct_mean", "agg_region_mean", "region_std", "read_depth", "num_cpgs", "pass_min_cpgs", sep="\t")
+        # print("\t".join(region),agg_pct_mean, agg_region_mean, region_std, 
+            # read_depth, num_cpgs, pass_min_cpgs, sep="\t")
 
 
         return region[0], str(int(region[1])-slop), str(int(region[2])+slop), agg_pct_mean, agg_region_mean, region_std, read_depth, num_cpgs, pass_min_cpgs
