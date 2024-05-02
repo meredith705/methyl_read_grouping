@@ -7,19 +7,23 @@ import pandas as pd
 import itertools
 from methlotype.utils import bam_functions as bf
 from methlotype.utils import graph_utils as graphing
-
+import datetime
 # import bam_functions as bf
 # import graph_utils as graphing
 
 class MethylBam:
     """ Class for storing and parsing a BAM file that contains methyl tags from ONT sequencing """
-    def __init__(self, bamPath, ml_cutoff, min_reads, sample_name, region):
-        self.bamPath = bamPath
-        self.ml_cutoff = ml_cutoff
-        self.min_reads = min_reads
-        self.sample_name = sample_name
+    def __init__(self, input_arg_list):
+    # bamPath, ml_cutoff, min_reads, min_cpgs, sample_name, region, heatmaps, slop):
+        self.bamPath = input_arg_list[0] # bamPath
+        self.ml_cutoff = input_arg_list[1] #ml_cutoff
+        self.min_reads = input_arg_list[2] #min_reads
+        self.min_cpgs = input_arg_list[3] #min_cpgs
+        self.sample_name = input_arg_list[4] #sample_name
+        self.heatmap = input_arg_list[6] #heatmaps
+        self.slop = input_arg_list[7] #slop
         # this won't always be run on a region
-        self.region = region
+        self.region = input_arg_list[5] #region
         self.mod_base_in_read = {}
         self.modbase = None
         self.mm = None
@@ -42,10 +46,12 @@ class MethylBam:
 
         # Fetch reads from region: chr startPos endPos
         mmTag, mlTag = '', ''
-        if len(self.region) == 3:
-            chromosome = self.region[0]
-            start = int(self.region[1])
-            end = int(self.region[2])
+        # print('region', self.region)
+        if len(self.region.split("_")) == 3:
+            reg = self.region.split("_")
+            chromosome = reg[0]
+            start = int(reg[1])
+            end = int(reg[2])
         else:
             return -1
 
@@ -88,7 +94,7 @@ class MethylBam:
                 # an index for where the next modified base is
                 mod_base_i_index = 0
                 for i, i_skip in enumerate(self.mm):
-                    # increment the read position by the number of modbase indices to skip
+                    # increment the read position by the number of modbase indices to skip.
                     # the base after skipped ones is the modified base, so add 1
                     mod_base_i_index += int(i_skip) + 1
 
@@ -144,34 +150,50 @@ class MethylBam:
 
         # for each chromosome make a new methylation df
         for chrom, position_dt in chrom_modbase_pos.items():
-            print('chrom', chrom)
+            # logfile.write('chrom '+str(chrom)+ '\n positions:'+position_dt.keys())
             # make an empty dataframe of the correct size; set this to all -1
-            df = pd.DataFrame(-1, index=read_set, columns=sorted(list(position_dt.keys())))
+            df = pd.DataFrame(-1, index=list(read_set), columns=sorted(list(position_dt.keys())))
+
 
             # using query start and end account for reads not overlapping a position to be counted
             # separate from unmethylated positions in an overlapping read
             # position not covered: -1   unmethylated position: 0   metylated position: 1
+            logfile.write('filling in zeros '+str(datetime.datetime.now())+'\n')
             for read, values in read_strands.items():
-                df.at[read, values[2]:values[3]] = 0
+                # df.at[read, values[2]:values[3]] = 0
+                df.loc[read, values[2]:values[3]] = 0
+            logfile.write('filled in zeros '+str(datetime.datetime.now())+'\n')
+
             # store methylated positions per read
             for pos in sorted(list(position_dt.keys())):
                 # for each methylated position, add 1 to the dataframe entry
                 for read in list(position_dt[pos].keys()):
                     # df.at[row,col]= new val
                     df.at[read, pos] += 1
+            logfile.write('filled in metylation values '+str(datetime.datetime.now())+'\n')
 
         # remove columns with less than min_reads reads supporting that methyl position
         # df = df.loc[:, df.sum(axis=0) > self.min_reads]
 
         # make_overlap_links(df, read_set)
         # run_louvain(df)
+        
+        # select only the region, instead of the flanks
+        sloppy_start = start - self.slop
+        sloppy_end = end + self.slop
+        df_region_only = df.loc[:, sloppy_start:sloppy_end]
 
-        bf.make_quick_hm(df, self.sample_name)
-        # make_pca(df, self.sample_name)
+        if self.heatmap:
+            print('heatmap',datetime.datetime.now())
+            logfile.write('heatmap '+ str(datetime.datetime.now()) )
+            bf.make_quick_hm(df, self.sample_name)
+            # make_pca(df, self.sample_name)
 
-        # select only the region, instead of the flanks with low coverage artifact of pysam fetch
-        df_region_only = df.loc[:, start:end]
-        bf.make_quick_hm(df_region_only, self.sample_name + '.reads.region')
+            # select only the region, instead of the flanks with low coverage artifact of pysam fetch
+            print('region heatmap',datetime.datetime.now())
+            logfile.write('region heatmap '+str(datetime.datetime.now()))
+            
+            bf.make_quick_hm(df_region_only, self.sample_name + '.reads.region')
         # make_pca(df_region_only, self.sample_name + '.region')
 
         samfile.close()

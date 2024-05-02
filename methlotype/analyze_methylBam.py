@@ -172,7 +172,7 @@ def make_overlap_edge_weights(reads_dict, rdf, read_strands, sample_name):
 
 
 
-def main(bamPath, min_prob, min_reads, sample_name, region):
+def main(bamPath, min_prob, min_reads, sample_name, region, scoreGraph):
 
     # methyl probability filter
     ml_min_prob = min_prob
@@ -185,10 +185,11 @@ def main(bamPath, min_prob, min_reads, sample_name, region):
     # plot_modbase_locations(mod_base_in_read)
 
     # make_overlap_edges(mod_base_in_read, 10,read_strands)
-
-    read_scores, edges = make_overlap_edge_weights(mod_base_in_read, rdf, read_strands, sample_name)
-
-    graphing.graph( edges, read_strands)
+    if scoreGraph:
+        print('making edge weights')
+        read_scores, edges = make_overlap_edge_weights(mod_base_in_read, rdf, read_strands, sample_name)
+        print('graphing')
+        graphing.make_graph( edges, read_strands, sample_name)
 
 
 if __name__ == "__main__":
@@ -205,7 +206,10 @@ if __name__ == "__main__":
         # neuron loc #1: chr2:51026934-51027176
         # SNRPN chr15:24953000-24958133 'chr15', 24953000, 24958133):     'chr15',24955941,24955999):#    'chr15', 24954860,24956812):#
 	python3.9 ../../../methlotype/analyze_methylBam.py -b http://public.gi.ucsc.edu/~memeredith/methyl/HG002_card/HG002_ONT_card_2_GRCh38_PEPPER_Margin_DeepVariant.haplotagged.bam -s HG002.snrpn -r chr15 24953000 24958133
-	'''
+	
+    https://public.gi.ucsc.edu/~memeredith/methyl/beds/methylation_R9/HG002_R9_R10/R9_R10_HG002/HG002_R9_phased.mod.hg38.bam
+
+    '''
 
     parser = argparse.ArgumentParser()
 
@@ -247,5 +251,17 @@ if __name__ == "__main__":
         help="Minimum read coverage of a methyl position to be included in analysis "
     )
 
+    parser.add_argument(
+        "-g","--score_graph",
+        required=False,
+        type=int,
+        default=1,
+        help="Boolean to run the scoring and graphing "
+    )
+
     args = parser.parse_args()
-    main(bamPath=args.b, min_prob=args.p, min_reads=args.c, sample_name=args.s, region=args.r)
+
+    print('score_graph',args.score_graph)
+
+    main(bamPath=args.b, min_prob=args.p, min_reads=args.c, sample_name=args.s, region=args.r,
+         scoreGraph=args.score_graph)
