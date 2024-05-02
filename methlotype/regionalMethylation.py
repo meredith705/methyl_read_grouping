@@ -161,6 +161,8 @@ def main(bamPath, bedPath, region_name, min_prob, min_reads, sample_name,
 
     outFile = sample_name+"_"+region_name+".bed"
     with open(outFile,'w') as out_bed:
+        header = ["#chr","start","end","agg_pct_mean", "agg_region_mean", "region_std", "read_depth", "num_cpgs", "pass_min_cpgs",str(sample_name),"\n"]
+        out_bed.write("\t".join(header))
         for entry in results:
             out_bed.write("\t".join(entry))
             out_bed.write('\n')
