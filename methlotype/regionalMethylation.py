@@ -9,9 +9,9 @@ import re
 import numpy as np
 import pandas as pd
 import itertools
-from sknetwork.data import from_edge_list
-from functools import reduce
-from scipy.spatial.distance import hamming
+# from sknetwork.data import from_edge_list
+# from functools import reduce
+# from scipy.spatial.distance import hamming
 
 from utils import bam_functions as bf
 from utils import graph_utils as graphing
@@ -85,16 +85,19 @@ def aggregated_methylation_per_region(input_arg_list):
     read_cov = read_cov.loc[:, read_cov.loc[1,:]>1]
     # print('\nread_cov', read_cov.shape,'\n',read_cov)
 
+    # make a heatmap after filtering, but it no longer looks readable.
+    # bf.make_quick_hm(read_cov, sample_name+'filtered')
+
     if rdf.shape[1]==0 or read_cov.shape[1]==0:
         agg_pct_mean = agg_region_mean =region_std = "-1"
         read_depth = str(mean_region_read_cov)
         num_cpgs="0"
         pass_min_cpgs="False"
-        return region[0], str(int(region[1])-slop), str(int(region[2])+slop), agg_pct_mean, agg_region_mean, region_std, read_depth, num_cpgs, pass_min_cpgs
+        numModReads = "-1"
+        numCanonReads = "-1"
+        return region[0], str(int(region[1])-slop), str(int(region[2])+slop), agg_pct_mean, agg_region_mean, region_std, read_depth, num_cpgs, pass_min_cpgs, numModReads, numCanonReads
 
-        # return -1, -1, -1
-    # elif read_cov.shape[1]==0:
-    #     return -1, -1, -1
+
     else:    
         
         # regional meth percentage as methyated measurments / 
@@ -108,19 +111,20 @@ def aggregated_methylation_per_region(input_arg_list):
         # print('pct meth\n', pct_meth,'\n')
 
         
-
+        numModReads = str(int(row_sums[1]))
+        numCanonReads = str(int(row_sums[0]))
         agg_region_mean = str(round((row_sums[1] *100) / (row_sums[0]+row_sums[1]) ,4))
         region_std = str(round(rdf.std().mean() ,4))
         read_depth = str(round(len(mod_base_in_read.keys()) ,4))
         num_cpgs = str(round(read_cov.shape[1] ,4))
         pass_min_cpgs = str(read_cov.shape[1]>=min_cpgs)
 
-        # print("\nchr","start","end","agg_pct_mean", "agg_region_mean", "region_std", "read_depth", "num_cpgs", "pass_min_cpgs", sep="\t")
-        # print("\t".join(region),agg_pct_mean, agg_region_mean, region_std, 
-            # read_depth, num_cpgs, pass_min_cpgs, sep="\t")
+        # print("\nchr","start","end","agg_pct_mean", "agg_region_mean", "region_std", "read_depth", "num_cpgs", "pass_min_cpgs", "numModReads", "numCanonReads", sep="\t")
+        # print(region[0], str(int(region[1])-slop), str(int(region[2])+slop),agg_pct_mean, agg_region_mean, region_std, 
+        #     read_depth, num_cpgs, pass_min_cpgs, numModReads, numCanonReads, sep="\t")
 
 
-        return region[0], str(int(region[1])-slop), str(int(region[2])+slop), agg_pct_mean, agg_region_mean, region_std, read_depth, num_cpgs, pass_min_cpgs
+        return region[0], str(int(region[1])-slop), str(int(region[2])+slop), agg_pct_mean, agg_region_mean, region_std, read_depth, num_cpgs, pass_min_cpgs, numModReads, numCanonReads
 
 
 
@@ -161,7 +165,7 @@ def main(bamPath, bedPath, region_name, min_prob, min_reads, sample_name,
 
     outFile = sample_name+"_"+region_name+".bed"
     with open(outFile,'w') as out_bed:
-        header = ["#chr","start","end","agg_pct_mean", "agg_region_mean", "region_std", "read_depth", "num_cpgs", "pass_min_cpgs",str(sample_name),"\n"]
+        header = ["#chr","start","end","agg_pct_mean", "agg_region_mean", "region_std", "read_depth", "num_cpgs", "pass_min_cpgs", "numModReads", "numCanonReads",str(sample_name),"\n"]
         out_bed.write("\t".join(header))
         for entry in results:
             out_bed.write("\t".join(entry))
