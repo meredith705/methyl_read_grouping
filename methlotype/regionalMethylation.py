@@ -4,7 +4,6 @@ import os
 import pysam
 import matplotlib.pyplot as plt
 from multiprocessing import Pool
-import re
 import numpy as np
 import pandas as pd
 import itertools
