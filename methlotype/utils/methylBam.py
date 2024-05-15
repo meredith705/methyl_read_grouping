@@ -5,11 +5,11 @@ import re
 import numpy as np
 import pandas as pd
 import itertools
-# from methlotype.utils import bam_functions as bf
-# from methlotype.utils import graph_utils as graphing
+from methlotype.utils import bam_functions as bf
+from methlotype.utils import graph_utils as graphing
 import datetime
 
-from utils import bam_functions as bf
+# from utils import bam_functions as bf
 # import graph_utils as graphing
 
 class MethylBam:
@@ -60,9 +60,9 @@ class MethylBam:
         for read in samfile.fetch(chromosome, start, end):
             # store some easy access metadata
             read_set.add(read.query_name)
-            bfile = open('beds/' + str(read.query_name) + '.mods.bed', 'w')
-            logfile.write(' '.join([ '\n', str(self.strand(read.is_reverse)), str(read.mapq), str(read.reference_name),
-                                     str(read.reference_start), str(read.reference_end), str(read.query_name) ]) )
+            # bfile = open('beds/' + str(read.query_name) + '.mods.bed', 'w')
+            # logfile.write(' '.join([ '\n', str(self.strand(read.is_reverse)), str(read.mapq), str(read.reference_name),
+            #                          str(read.reference_start), str(read.reference_end), str(read.query_name) ]) )
 
             # get mm and ml tag information per read
             # the methyl tags can be either Mm/Ml or MM/ML for R10 or R9
@@ -109,8 +109,8 @@ class MethylBam:
                             pos = refcigarpositions[mod_base_i[-mod_base_i_index]] - 1
 
                             # write to bed:
-                            bfile.write(str(read.reference_name) + '\t' + str(pos - 1) + '\t' + str(pos) + '\t' + str(
-                                ml[i]) + '\t' + '-' + '\n')
+                            # bfile.write(str(read.reference_name) + '\t' + str(pos - 1) + '\t' + str(pos) + '\t' + str(
+                            #     ml[i]) + '\t' + '-' + '\n')
 
                             self.fill_dictionary(read, chrom_modbase_pos, pos,
                                             [refcigarpositions[read.query_alignment_start],
@@ -138,15 +138,15 @@ class MethylBam:
                             pos = refcigarpositions[mod_base_i[read_modbase_pos]] + 1  #CHANGEd
 
                             # write to bed
-                            bfile.write(str(read.reference_name) + '\t' + str(pos - 1) + '\t' + str(pos) + '\t' + str(
-                                ml[i]) + '\t' + '+' + '\n')
+                            # bfile.write(str(read.reference_name) + '\t' + str(pos - 1) + '\t' + str(pos) + '\t' + str(
+                            #     ml[i]) + '\t' + '+' + '\n')
 
                             self.fill_dictionary(read, chrom_modbase_pos, pos,
                                             [refcigarpositions[read.query_alignment_start],
                                              refcigarpositions[read.query_alignment_end - 1], i, ml[i],
                                              mod_base_i[read_modbase_pos], '+'], logfile)
 
-            bfile.close()
+            # bfile.close()
 
         # for each chromosome make a new methylation df
         for chrom, position_dt in chrom_modbase_pos.items():
@@ -246,13 +246,13 @@ class MethylBam:
         # check if position is in the dictionary
         if pos not in chrom_modbase_pos[read.reference_name].keys():
             chrom_modbase_pos[read.reference_name][pos] = {read.query_name: info_list}
-            logfile.write(
-                '\t' + str(info_list[2]) + ' -strand pos ' + '\t' + str(pos) + ' ' + str(read.query_name) + '\n')
+            # logfile.write(
+                # '\t' + str(info_list[2]) + ' -strand pos ' + '\t' + str(pos) + ' ' + str(read.query_name) + '\n')
 
         elif pos in chrom_modbase_pos[read.reference_name].keys():
             chrom_modbase_pos[read.reference_name][pos][read.query_name] = info_list
-            logfile.write(
-                '\t' + str(info_list[2]) + ' - existing strand pos ' + '\t' + str(pos) + ' ' + str(read.query_name) + '\n')
+            # logfile.write(
+            #     '\t' + str(info_list[2]) + ' - existing strand pos ' + '\t' + str(pos) + ' ' + str(read.query_name) + '\n')
 
         # dict #2 don't need this soon
         # check for query name in dict keys
