@@ -10,7 +10,7 @@ import itertools
 # from sknetwork.data import from_edge_list
 # from functools import reduce
 # from scipy.spatial.distance import hamming
-"""
+
 from utils import bam_functions as bf
 from utils import graph_utils as graphing
 from utils import methylBam as mB
@@ -25,7 +25,7 @@ sys.path.append(".")
 from methlotype.utils import methylBam as mB
 from methlotype.utils import bam_functions as bf
 from methlotype.utils import graph_utils as graphing
-
+"""
 
 def get_cov_at_each_pos(df, sample_name):
     """ store the frequency of each methylation character at each position for easy look up """
