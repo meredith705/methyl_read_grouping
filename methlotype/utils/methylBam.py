@@ -10,7 +10,7 @@ import itertools
 import datetime
 
 from utils import bam_functions as bf
-import graph_utils as graphing
+from utils import graph_utils as graphing
 
 class MethylBam:
     """ Class for storing and parsing a BAM file that contains methyl tags from ONT sequencing """
